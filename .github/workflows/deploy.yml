@@ -66,17 +66,30 @@ jobs:
         env:
           ENV_NAME: ${{ steps.tags.outputs.env_name }}
           REGISTRY: ${{ steps.tags.outputs.registry }}
-          SHORT_SHA: ${{ steps.tags.outputs.short_sha }}
         run: |
+          # Fetch values from CloudFormation exports
+          EXEC_ROLE=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${ENV_NAME}-bem13-EcsTaskExecutionRoleArn'].Value" \
+            --output text)
+          TASK_ROLE=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${ENV_NAME}-bem13-EcsTaskRoleArn'].Value" \
+            --output text)
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${ENV_NAME}-bem13-ArtifactsBucket'].Value" \
+            --output text)
+
           IMAGE_URI="${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-latest"
-          # Build taskdef.json with the actual image URI
-          sed "s|<IMAGE1_NAME>|${IMAGE_URI}|g" codedeploy/taskdef.json > /tmp/taskdef.json
+
+          # Substitute all placeholders in taskdef.json before uploading
+          sed "s|<IMAGE1_NAME>|${IMAGE_URI}|g; \
+               s|EXECUTION_ROLE_ARN_PLACEHOLDER|${EXEC_ROLE}|g; \
+               s|TASK_ROLE_ARN_PLACEHOLDER|${TASK_ROLE}|g; \
+               s|ENV_PLACEHOLDER|${ENV_NAME}|g" \
+            codedeploy/taskdef.json > /tmp/taskdef.json
+
           cp codedeploy/appspec.yaml /tmp/appspec.yaml
           cd /tmp && zip deploy-artifacts.zip taskdef.json appspec.yaml
-          aws s3 cp deploy-artifacts.zip \
-            "s3://$(aws cloudformation list-exports \
-              --query "Exports[?Name=='${ENV_NAME}-bem13-ArtifactsBucket'].Value" \
-              --output text)/${ENV_NAME}/deploy-artifacts.zip"
+          aws s3 cp deploy-artifacts.zip "s3://${BUCKET}/${ENV_NAME}/deploy-artifacts.zip"
 
       - name: Build and push Docker image
         env:
