@@ -1,0 +1,93 @@
+name: Build & Push to ECR
+
+on:
+  push:
+    branches: [dev, test, main]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: bem13-app
+  JAVA_VERSION: '21'
+
+jobs:
+  build-and-push:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Build JAR
+        run: mvn clean package -DskipTests -B
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve ECR registry and image tags
+        id: tags
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ENV_NAME: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${SHA::8}"
+          echo "sha_tag=${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-latest"    >> "$GITHUB_OUTPUT"
+          echo "env_name=${ENV_NAME}"                                            >> "$GITHUB_OUTPUT"
+          echo "registry=${REGISTRY}"                                            >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}"                                          >> "$GITHUB_OUTPUT"
+
+      # Upload S3 artifacts BEFORE ECR push to prevent EventBridge race condition
+      - name: Upload CodeDeploy artifacts to S3
+        env:
+          ENV_NAME: ${{ steps.tags.outputs.env_name }}
+          REGISTRY: ${{ steps.tags.outputs.registry }}
+          SHORT_SHA: ${{ steps.tags.outputs.short_sha }}
+        run: |
+          IMAGE_URI="${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-latest"
+          # Build taskdef.json with the actual image URI
+          sed "s|<IMAGE1_NAME>|${IMAGE_URI}|g" codedeploy/taskdef.json > /tmp/taskdef.json
+          cp codedeploy/appspec.yaml /tmp/appspec.yaml
+          cd /tmp && zip deploy-artifacts.zip taskdef.json appspec.yaml
+          aws s3 cp deploy-artifacts.zip \
+            "s3://$(aws cloudformation list-exports \
+              --query "Exports[?Name=='${ENV_NAME}-bem13-ArtifactsBucket'].Value" \
+              --output text)/${ENV_NAME}/deploy-artifacts.zip"
+
+      - name: Build and push Docker image
+        env:
+          SHA_TAG: ${{ steps.tags.outputs.sha_tag }}
+          LATEST_TAG: ${{ steps.tags.outputs.latest_tag }}
+        run: |
+          docker build -t "${SHA_TAG}" -t "${LATEST_TAG}" .
+          docker push "${SHA_TAG}"
+          docker push "${LATEST_TAG}"
+
+      - name: Summary
+        env:
+          SHA_TAG: ${{ steps.tags.outputs.sha_tag }}
+        run: echo "::notice title=Image pushed::${SHA_TAG}"
