@@ -1,5 +1,5 @@
 {
-  "family": "bem13-app",
+  "family": "bem14-app",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
@@ -20,12 +20,46 @@
         {
           "name": "SPRING_PROFILES_ACTIVE",
           "value": "ENV_PLACEHOLDER"
+        },
+        {
+          "name": "PORT",
+          "value": "8080"
+        },
+        {
+          "name": "DB_HOST",
+          "value": "DB_HOST_PLACEHOLDER"
+        },
+        {
+          "name": "DB_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "DB_NAME",
+          "value": "photodb"
+        },
+        {
+          "name": "IMAGES_BUCKET",
+          "value": "IMAGES_BUCKET_PLACEHOLDER"
+        },
+        {
+          "name": "CLOUDFRONT_DOMAIN",
+          "value": "CLOUDFRONT_DOMAIN_PLACEHOLDER"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DB_USERNAME",
+          "valueFrom": "DB_SECRET_ARN_PLACEHOLDER:username::"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "DB_SECRET_ARN_PLACEHOLDER:password::"
         }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/bem13-app",
+          "awslogs-group": "/ecs/bem14-app",
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs"
         }

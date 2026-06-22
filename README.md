@@ -11,7 +11,7 @@ This repository contains the Spring Boot application, Dockerfile, and GitHub Act
 ```
 ecs-cicd-app/
 ├── src/
-│   ├── main/java/com/example/bem13/
+│   ├── main/java/com/example/bem14/
 │   │   ├── Bem13Application.java
 │   │   ├── controller/
 │   │   │   ├── InfoController.java    # GET /api/info
@@ -22,7 +22,7 @@ ecs-cicd-app/
 │   ├── main/resources/
 │   │   ├── application.yaml
 │   │   └── static/index.html          # Dashboard UI
-│   └── test/java/com/example/bem13/
+│   └── test/java/com/example/bem14/
 │       ├── InfoControllerTest.java
 │       └── QuoteControllerTest.java
 ├── codedeploy/
@@ -42,14 +42,14 @@ ecs-cicd-app/
 ```bash
 # Build and run
 mvn clean package -DskipTests -B
-java -jar target/bem13app-0.0.1-SNAPSHOT.jar
+java -jar target/bem14app-0.0.1-SNAPSHOT.jar
 
 # Run tests (6 tests, 0 failures expected)
 mvn test -B
 
 # Docker build and run
-docker build -t bem13app:local .
-docker run -p 8080:8080 -e SPRING_PROFILES_ACTIVE=dev bem13app:local
+docker build -t bem14app:local .
+docker run -p 8080:8080 -e SPRING_PROFILES_ACTIVE=dev bem14app:local
 ```
 
 Open `http://localhost:8080` for the dashboard.
@@ -67,7 +67,7 @@ Open `http://localhost:8080` for the dashboard.
 ### Required GitHub Secret
 
 ```
-AWS_ROLE_ARN = arn:aws:iam::<AccountId>:role/prod-bem13-github-actions-role
+AWS_ROLE_ARN = arn:aws:iam::<AccountId>:role/prod-bem14-github-actions-role
 ```
 
 No other AWS secrets — OIDC handles authentication.

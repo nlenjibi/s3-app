@@ -14,7 +14,7 @@ concurrency:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: bem13-app
+  ECR_REPOSITORY: bem14-app
   JAVA_VERSION: '21'
 
 jobs:
@@ -69,13 +69,25 @@ jobs:
         run: |
           # Fetch values from CloudFormation exports
           EXEC_ROLE=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem13-EcsTaskExecutionRoleArn'].Value" \
+            --query "Exports[?Name=='${ENV_NAME}-bem14-EcsTaskExecutionRoleArn'].Value" \
             --output text)
           TASK_ROLE=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem13-EcsTaskRoleArn'].Value" \
+            --query "Exports[?Name=='${ENV_NAME}-bem14-EcsTaskRoleArn'].Value" \
             --output text)
           BUCKET=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem13-ArtifactsBucket'].Value" \
+            --query "Exports[?Name=='${ENV_NAME}-bem14-ArtifactsBucket'].Value" \
+            --output text)
+          DB_HOST=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${ENV_NAME}-bem14-DBEndpoint'].Value" \
+            --output text)
+          DB_SECRET_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${ENV_NAME}-bem14-DBSecretArn'].Value" \
+            --output text)
+          IMAGES_BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${ENV_NAME}-bem14-ImagesBucketName'].Value" \
+            --output text)
+          CLOUDFRONT_DOMAIN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${ENV_NAME}-bem14-CloudFrontDomainName'].Value" \
             --output text)
 
           IMAGE_URI="${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-latest"
@@ -84,7 +96,11 @@ jobs:
           sed "s|<IMAGE1_NAME>|${IMAGE_URI}|g; \
                s|EXECUTION_ROLE_ARN_PLACEHOLDER|${EXEC_ROLE}|g; \
                s|TASK_ROLE_ARN_PLACEHOLDER|${TASK_ROLE}|g; \
-               s|ENV_PLACEHOLDER|${ENV_NAME}|g" \
+               s|ENV_PLACEHOLDER|${ENV_NAME}|g; \
+               s|DB_HOST_PLACEHOLDER|${DB_HOST}|g; \
+               s|DB_SECRET_ARN_PLACEHOLDER|${DB_SECRET_ARN}|g; \
+               s|IMAGES_BUCKET_PLACEHOLDER|${IMAGES_BUCKET}|g; \
+               s|CLOUDFRONT_DOMAIN_PLACEHOLDER|${CLOUDFRONT_DOMAIN}|g" \
             codedeploy/taskdef.json > /tmp/taskdef.json
 
           cp codedeploy/appspec.yaml /tmp/appspec.yaml
