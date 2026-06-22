@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "family": "bem14-app",
+=======
+  "family": "ENV_PLACEHOLDER-bem13-task",
+>>>>>>> e56154769fda462554079ba32c57348348b434be
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
@@ -59,13 +63,18 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
+<<<<<<< HEAD
           "awslogs-group": "/ecs/bem14-app",
           "awslogs-region": "us-east-1",
+=======
+          "awslogs-group": "/ecs/ENV_PLACEHOLDER-bem13",
+          "awslogs-region": "eu-west-1",
+>>>>>>> e56154769fda462554079ba32c57348348b434be
           "awslogs-stream-prefix": "ecs"
         }
       },
       "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
+        "command": ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/health || exit 1"],
         "interval": 30,
         "timeout": 5,
         "retries": 3,

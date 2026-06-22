@@ -1,40 +1,48 @@
-name: CI
+name: CI / Deploy
 
 on:
   push:
-    branches: [dev, test, main]
+    branches: [main]
+    paths-ignore:
+      - '**.md'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  JAVA_VERSION: '21'
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-and-test:
+
+  # ── Job 1: Build & Test ─────────────────────────────────────────
+  test:
     name: Build & Test
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: ${{ vars.JAVA_VERSION }}
           distribution: temurin
           cache: maven
 
       - name: Build and test
-        run: mvn clean verify -B
+        run: mvn verify -B --no-transfer-progress -T 1C
+
+      - name: Upload JAR
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: target/*.jar
+          retention-days: 1
 
       - name: Upload test results
         if: always()
@@ -43,3 +51,63 @@ jobs:
           name: test-results
           path: target/surefire-reports/
           retention-days: 7
+
+  # ── Job 2: Build image, upload artifacts, push to ECR ───────────
+  deploy:
+    name: Deploy
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: target/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Upload CodeDeploy artifacts to S3
+        env:
+          ENV_NAME: ${{ secrets.ENV_NAME }}
+          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}:latest
+          EXEC_ROLE: ${{ secrets.ECS_EXEC_ROLE_ARN }}
+          TASK_ROLE: ${{ secrets.ECS_TASK_ROLE_ARN }}
+        run: |
+          sed "s|<IMAGE1_NAME>|${IMAGE_URI}|g; \
+               s|EXECUTION_ROLE_ARN_PLACEHOLDER|${EXEC_ROLE}|g; \
+               s|TASK_ROLE_ARN_PLACEHOLDER|${TASK_ROLE}|g; \
+               s|ENV_PLACEHOLDER|${ENV_NAME}|g" \
+            codedeploy/taskdef.json > /tmp/taskdef.json
+          cp codedeploy/appspec.yaml /tmp/appspec.yaml
+          cd /tmp && zip -q deploy-artifacts.zip taskdef.json appspec.yaml
+          aws s3 cp deploy-artifacts.zip "s3://${{ secrets.ARTIFACTS_BUCKET }}/${ENV_NAME}/deploy-artifacts.zip"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "::notice title=Deployed::${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}:latest"
