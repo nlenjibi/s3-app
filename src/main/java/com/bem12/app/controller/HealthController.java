@@ -11,7 +11,7 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
-    @Value("${app.version:1.0.0}")
+    @Value("${app.version}")
     private String appVersion;
 
     @GetMapping("/health")

@@ -1,98 +1,99 @@
-name: Build & Push to ECR
+name: CI / Deploy
 
 on:
   push:
-    branches: [dev, test, main]
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
 
 permissions:
-  id-token: write
   contents: read
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
-  cancel-in-progress: false
-
-env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: bem14-app
-  JAVA_VERSION: '21'
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-and-push:
-    name: Build & Push
+
+  # ── Job 1: Build & Test ─────────────────────────────────────────
+  test:
+    name: Build & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: ${{ vars.JAVA_VERSION }}
           distribution: temurin
           cache: maven
 
-      - name: Build JAR
-        run: mvn clean package -DskipTests -B
+      - name: Build and test
+        run: mvn verify -B --no-transfer-progress -T 1C
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Upload JAR
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: target/*.jar
+          retention-days: 1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: target/surefire-reports/
+          retention-days: 7
+
+  # ── Job 2: Build image, upload artifacts, push to ECR ───────────
+  deploy:
+    name: Deploy
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: target/
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Resolve ECR registry and image tags
-        id: tags
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ENV_NAME: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
-          SHA: ${{ github.sha }}
-        run: |
-          SHORT_SHA="${SHA::8}"
-          echo "sha_tag=${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "latest_tag=${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-latest"    >> "$GITHUB_OUTPUT"
-          echo "env_name=${ENV_NAME}"                                            >> "$GITHUB_OUTPUT"
-          echo "registry=${REGISTRY}"                                            >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORT_SHA}"                                          >> "$GITHUB_OUTPUT"
-
-      # Upload S3 artifacts BEFORE ECR push to prevent EventBridge race condition
+      # Upload S3 artifacts BEFORE Docker push to prevent EventBridge race condition
       - name: Upload CodeDeploy artifacts to S3
         env:
-          ENV_NAME: ${{ steps.tags.outputs.env_name }}
-          REGISTRY: ${{ steps.tags.outputs.registry }}
+          IMAGE_URI:     ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest
+          EXEC_ROLE:     ${{ secrets.ECS_EXEC_ROLE_ARN }}
+          TASK_ROLE:     ${{ secrets.ECS_TASK_ROLE_ARN }}
+          ENV_NAME:      ${{ secrets.ENV_NAME }}
+          DB_HOST:       ${{ secrets.DB_HOST }}
+          DB_SECRET_ARN: ${{ secrets.DB_SECRET_ARN }}
+          IMAGES_BUCKET: ${{ secrets.IMAGES_BUCKET }}
+          CF_DOMAIN:     ${{ secrets.CLOUDFRONT_DOMAIN }}
+          AWS_REGION:    ${{ secrets.AWS_REGION }}
         run: |
-          # Fetch values from CloudFormation exports
-          EXEC_ROLE=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem14-EcsTaskExecutionRoleArn'].Value" \
-            --output text)
-          TASK_ROLE=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem14-EcsTaskRoleArn'].Value" \
-            --output text)
-          BUCKET=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem14-ArtifactsBucket'].Value" \
-            --output text)
-          DB_HOST=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem14-DBEndpoint'].Value" \
-            --output text)
-          DB_SECRET_ARN=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem14-DBSecretArn'].Value" \
-            --output text)
-          IMAGES_BUCKET=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem14-ImagesBucketName'].Value" \
-            --output text)
-          CLOUDFRONT_DOMAIN=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='${ENV_NAME}-bem14-CloudFrontDomainName'].Value" \
-            --output text)
-
-          IMAGE_URI="${REGISTRY}/${ECR_REPOSITORY}:${ENV_NAME}-latest"
-
-          # Substitute all placeholders in taskdef.json before uploading
           sed "s|<IMAGE1_NAME>|${IMAGE_URI}|g; \
                s|EXECUTION_ROLE_ARN_PLACEHOLDER|${EXEC_ROLE}|g; \
                s|TASK_ROLE_ARN_PLACEHOLDER|${TASK_ROLE}|g; \
@@ -100,23 +101,25 @@ jobs:
                s|DB_HOST_PLACEHOLDER|${DB_HOST}|g; \
                s|DB_SECRET_ARN_PLACEHOLDER|${DB_SECRET_ARN}|g; \
                s|IMAGES_BUCKET_PLACEHOLDER|${IMAGES_BUCKET}|g; \
-               s|CLOUDFRONT_DOMAIN_PLACEHOLDER|${CLOUDFRONT_DOMAIN}|g" \
+               s|CLOUDFRONT_DOMAIN_PLACEHOLDER|${CF_DOMAIN}|g; \
+               s|AWS_REGION_PLACEHOLDER|${AWS_REGION}|g" \
             codedeploy/taskdef.json > /tmp/taskdef.json
 
           cp codedeploy/appspec.yaml /tmp/appspec.yaml
-          cd /tmp && zip deploy-artifacts.zip taskdef.json appspec.yaml
-          aws s3 cp deploy-artifacts.zip "s3://${BUCKET}/${ENV_NAME}/deploy-artifacts.zip"
+          cd /tmp && zip -q deploy-artifacts.zip taskdef.json appspec.yaml
+          aws s3 cp deploy-artifacts.zip "s3://${{ secrets.ARTIFACTS_BUCKET }}/${ENV_NAME}/deploy-artifacts.zip"
 
-      - name: Build and push Docker image
-        env:
-          SHA_TAG: ${{ steps.tags.outputs.sha_tag }}
-          LATEST_TAG: ${{ steps.tags.outputs.latest_tag }}
-        run: |
-          docker build -t "${SHA_TAG}" -t "${LATEST_TAG}" .
-          docker push "${SHA_TAG}"
-          docker push "${LATEST_TAG}"
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Summary
-        env:
-          SHA_TAG: ${{ steps.tags.outputs.sha_tag }}
-        run: echo "::notice title=Image pushed::${SHA_TAG}"
+        run: |
+          echo "::notice title=Deployed::${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest"
