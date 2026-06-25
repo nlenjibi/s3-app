@@ -35,11 +35,7 @@ photo:
 management:
   endpoints:
     web:
-<<<<<<< HEAD
       base-path: /actuator
-=======
-      base-path: /
->>>>>>> e56154769fda462554079ba32c57348348b434be
       exposure:
         include: health,info,metrics
   endpoint:
