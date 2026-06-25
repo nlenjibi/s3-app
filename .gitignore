@@ -5,3 +5,7 @@ target/
 .DS_Store
 .idea/
 *.iml
+.claude/
+.vscode/
+.env/
+.claude/settings.local.json
