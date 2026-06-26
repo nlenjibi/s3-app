@@ -84,7 +84,7 @@ jobs:
       # Upload S3 artifacts BEFORE Docker push to prevent EventBridge race condition
       - name: Upload CodeDeploy artifacts to S3
         env:
-          IMAGE_URI:     ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}
+          IMAGE_URI:     ${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}
           EXEC_ROLE:     ${{ secrets.ECS_EXEC_ROLE_ARN }}
           TASK_ROLE:     ${{ secrets.ECS_TASK_ROLE_ARN }}
           ENV_NAME:      ${{ secrets.ENV_NAME }}
@@ -116,10 +116,10 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Summary
         run: |
-          echo "::notice title=Deployed::${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest"
+          echo "::notice title=Deployed::${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}:latest"
