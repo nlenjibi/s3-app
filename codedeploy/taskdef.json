@@ -1,5 +1,5 @@
 {
-  "family": "bem14-app",
+  "family": "ENV_PLACEHOLDER-bem14-task",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
