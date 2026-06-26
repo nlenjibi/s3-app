@@ -2,11 +2,11 @@ name: CI / Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
     paths-ignore:
       - '**.md'
   pull_request:
-    branches: [main]
+    branches: [main, test]
     paths-ignore:
       - '**.md'
 
@@ -37,7 +37,7 @@ jobs:
         run: mvn verify -B --no-transfer-progress -T 1C
 
       - name: Upload JAR
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: app-jar
@@ -56,7 +56,7 @@ jobs:
   deploy:
     name: Deploy
     needs: test
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -81,30 +81,28 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Upload S3 artifacts BEFORE Docker push to prevent EventBridge race condition
       - name: Upload CodeDeploy artifacts to S3
         env:
-          IMAGE_URI:     ${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}
-          EXEC_ROLE:     ${{ secrets.ECS_EXEC_ROLE_ARN }}
-          TASK_ROLE:     ${{ secrets.ECS_TASK_ROLE_ARN }}
-          ENV_NAME:      ${{ secrets.ENV_NAME }}
-          DB_HOST:       ${{ secrets.DB_HOST }}
-          DB_SECRET_ARN: ${{ secrets.DB_SECRET_ARN }}
+          ENV_NAME: ${{ secrets.ENV_NAME }}
+          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}
+          EXEC_ROLE: ${{ secrets.ECS_EXEC_ROLE_ARN }}
+          TASK_ROLE: ${{ secrets.ECS_TASK_ROLE_ARN }}
+          DB_HOST: ${{ secrets.DB_HOST }}
           IMAGES_BUCKET: ${{ secrets.IMAGES_BUCKET }}
-          CF_DOMAIN:     ${{ secrets.CLOUDFRONT_DOMAIN }}
-          AWS_REGION:    ${{ secrets.AWS_REGION }}
+          CLOUDFRONT_DOMAIN: ${{ secrets.CLOUDFRONT_DOMAIN }}
+          DB_SECRET_ARN: ${{ secrets.DB_SECRET_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           sed "s|<IMAGE1_NAME>|${IMAGE_URI}|g; \
                s|EXECUTION_ROLE_ARN_PLACEHOLDER|${EXEC_ROLE}|g; \
                s|TASK_ROLE_ARN_PLACEHOLDER|${TASK_ROLE}|g; \
                s|ENV_PLACEHOLDER|${ENV_NAME}|g; \
                s|DB_HOST_PLACEHOLDER|${DB_HOST}|g; \
-               s|DB_SECRET_ARN_PLACEHOLDER|${DB_SECRET_ARN}|g; \
                s|IMAGES_BUCKET_PLACEHOLDER|${IMAGES_BUCKET}|g; \
-               s|CLOUDFRONT_DOMAIN_PLACEHOLDER|${CF_DOMAIN}|g; \
+               s|CLOUDFRONT_DOMAIN_PLACEHOLDER|${CLOUDFRONT_DOMAIN}|g; \
+               s|DB_SECRET_ARN_PLACEHOLDER|${DB_SECRET_ARN}|g; \
                s|AWS_REGION_PLACEHOLDER|${AWS_REGION}|g" \
             codedeploy/taskdef.json > /tmp/taskdef.json
-
           cp codedeploy/appspec.yaml /tmp/appspec.yaml
           cd /tmp && zip -q deploy-artifacts.zip taskdef.json appspec.yaml
           aws s3 cp deploy-artifacts.zip "s3://${{ secrets.ARTIFACTS_BUCKET }}/${ENV_NAME}/deploy-artifacts.zip"
@@ -122,4 +120,4 @@ jobs:
 
       - name: Summary
         run: |
-          echo "::notice title=Deployed::${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}:latest"
+          echo "::notice title=Deployed::${{ steps.login-ecr.outputs.registry }}/${{ secrets.REPO_NAME }}"
