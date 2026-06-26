@@ -35,12 +35,9 @@ photo:
 management:
   endpoints:
     web:
-      base-path: /actuator
+      base-path: /
       exposure:
-        include: health,info,metrics
-  endpoint:
-    health:
-      show-details: always
+        include: health,info
   info:
     env:
       enabled: true
