@@ -4,140 +4,623 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Photo Gallery</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #09090b;
+      --surface:    #111115;
+      --surface2:   #18181d;
+      --surface3:   #1f1f26;
+      --border:     rgba(255,255,255,0.06);
+      --border-h:   rgba(255,255,255,0.11);
+      --accent:     #818cf8;
+      --accent-bg:  #6366f1;
+      --accent-h:   #4f46e5;
+      --text:       #f4f4f5;
+      --text-2:     #a1a1aa;
+      --text-3:     #52525b;
+      --green:      #34d399;
+      --red:        #f87171;
+    }
+
+    html { font-size: 16px; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f0f2f5;
-      color: #1a1a2e;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-    }
-
-    header {
-      background: #1a1a2e;
-      color: #fff;
-      padding: 1rem 2rem;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
     }
 
-    header h1 { font-size: 1.4rem; letter-spacing: 0.05em; }
+    /* ─── Navbar ─────────────────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: 60px;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.75rem;
+    }
 
-    header a {
-      background: #4f8cff;
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.015em;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(129,140,248,0.3);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .pill {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-2);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--accent-bg);
       color: #fff;
       text-decoration: none;
-      padding: 0.5rem 1.2rem;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      transition: background 0.2s;
+      padding: 0.5rem 1rem;
+      border-radius: 7px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 0 0 1px rgba(99,102,241,0.5) inset;
+    }
+    .btn-primary:hover  { background: var(--accent-h); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.35); }
+    .btn-primary:active { transform: translateY(0); }
+
+    /* ─── Toast / Flash ──────────────────────────────────────────── */
+    .toasts {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
 
-    header a:hover { background: #2563eb; }
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.83rem;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      animation: slide-in 0.25s ease;
+      max-width: 340px;
+    }
+    .toast.success { background: #052e16; border: 1px solid rgba(52,211,153,0.25); color: var(--green); }
+    .toast.error   { background: #2d0d0d; border: 1px solid rgba(248,113,113,0.25); color: var(--red); }
 
-    .flash {
-      max-width: 1100px;
-      margin: 1rem auto 0;
-      padding: 0.75rem 1.2rem;
-      border-radius: 6px;
-      font-size: 0.9rem;
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(16px); }
+      to   { opacity: 1; transform: translateX(0); }
     }
 
-    .flash.success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
-    .flash.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    /* ─── Page Shell ─────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 2.5rem 1.75rem 4rem;
+    }
 
-    main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
-
+    /* ─── Empty State ────────────────────────────────────────────── */
     .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
-      padding: 4rem 1rem;
-      color: #6b7280;
+      padding: 6rem 1rem;
+      gap: 0;
     }
 
-    .empty p { font-size: 1.1rem; margin-bottom: 1rem; }
+    .empty-art {
+      position: relative;
+      width: 180px;
+      height: 140px;
+      margin-bottom: 2rem;
+    }
 
+    /* stacked photo cards illustration */
+    .art-card {
+      position: absolute;
+      border-radius: 10px;
+      border: 1px solid var(--border-h);
+    }
+
+    .art-card-back {
+      width: 140px;
+      height: 100px;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%) rotate(-6deg);
+      background: var(--surface3);
+    }
+
+    .art-card-mid {
+      width: 140px;
+      height: 100px;
+      bottom: 4px;
+      left: 50%;
+      transform: translateX(-50%) rotate(3deg);
+      background: var(--surface2);
+    }
+
+    .art-card-front {
+      width: 148px;
+      height: 108px;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    .art-icon-wrap {
+      width: 40px;
+      height: 40px;
+      background: var(--surface3);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .art-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      width: 80px;
+    }
+
+    .art-line {
+      height: 5px;
+      border-radius: 3px;
+      background: var(--surface3);
+    }
+    .art-line-short { width: 55%; }
+
+    .empty-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.2);
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .empty h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 0.75rem;
+    }
+
+    .empty p {
+      font-size: 0.9rem;
+      color: var(--text-2);
+      max-width: 360px;
+      line-height: 1.65;
+      margin-bottom: 1.75rem;
+    }
+
+    .btn-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: var(--accent-bg);
+      color: #fff;
+      text-decoration: none;
+      padding: 0.65rem 1.4rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 0 0 1px rgba(99,102,241,0.5) inset;
+    }
+    .btn-cta:hover  { background: var(--accent-h); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+    .btn-cta:active { transform: translateY(0); }
+
+    /* ─── Section Header ─────────────────────────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .section-count {
+      font-size: 0.78rem;
+      color: var(--text-3);
+    }
+
+    /* ─── Photo Grid ─────────────────────────────────────────────── */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1.2rem;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
     }
 
     .card {
-      background: #fff;
-      border-radius: 10px;
+      background: var(--surface);
+      position: relative;
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: zoom-in;
     }
 
-    .card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    .card-img-wrap {
+      position: relative;
+      overflow: hidden;
     }
 
     .card img {
       width: 100%;
-      height: 220px;
+      height: 240px;
       object-fit: cover;
       display: block;
+      transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
 
-    .card-body { padding: 0.9rem 1rem; }
+    .card:hover img { transform: scale(1.06); }
 
-    .card-body p {
-      font-size: 0.9rem;
-      color: #374151;
-      line-height: 1.5;
-      word-break: break-word;
+    .card-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(9,9,11,0.92) 0%,
+        rgba(9,9,11,0.3) 40%,
+        transparent 70%
+      );
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 1.25rem;
+      gap: 0.3rem;
     }
 
-    .card-body time {
-      display: block;
-      margin-top: 0.5rem;
-      font-size: 0.75rem;
-      color: #9ca3af;
+    .card:hover .card-overlay { opacity: 1; }
+
+    .overlay-desc {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #fff;
+      line-height: 1.4;
     }
 
+    .overlay-time {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.5);
+    }
+
+    /* ─── Lightbox ───────────────────────────────────────────────── */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      cursor: zoom-out;
+    }
+
+    .lightbox.open { display: flex; }
+
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.8);
+    }
+
+    .lb-close {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      width: 36px;
+      height: 36px;
+      background: var(--surface2);
+      border: 1px solid var(--border-h);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .lb-close:hover { background: var(--surface3); }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
     footer {
-      text-align: center;
-      padding: 2rem 1rem;
-      font-size: 0.8rem;
-      color: #9ca3af;
+      border-top: 1px solid var(--border);
+      padding: 1.25rem 1.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-copy {
+      font-size: 0.72rem;
+      color: var(--text-3);
+    }
+
+    .footer-stack {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .stack-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-3);
+      text-decoration: none;
+    }
+
+    .stack-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ─── Responsive ─────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      nav    { padding: 0 1rem; }
+      main   { padding: 1.5rem 1rem 3rem; }
+      footer { flex-direction: column; gap: 0.75rem; text-align: center; }
+      .pill  { display: none; }
+      .grid  { grid-template-columns: 1fr 1fr; }
+      .card img { height: 160px; }
+      .empty { padding: 4rem 1rem; }
+      .empty h2 { font-size: 1.4rem; }
+    }
+
+    @media (max-width: 400px) {
+      .grid { grid-template-columns: 1fr; }
+      .card img { height: 220px; }
     }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>Photo Gallery</h1>
-  <a th:href="@{/upload}">+ Upload Photo</a>
-</header>
+<!-- ─── Navbar ───────────────────────────────────────────────── -->
+<nav>
+  <a href="/gallery" class="nav-brand">
+    <div class="brand-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </div>
+    Photo Gallery
+  </a>
+  <div class="nav-right">
+    <span th:if="${not #lists.isEmpty(photos)}" class="pill"
+          th:text="${#lists.size(photos)} + ' ' + (${#lists.size(photos)} == 1 ? 'photo' : 'photos')"></span>
+    <a th:href="@{/upload}" class="btn-primary">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Upload
+    </a>
+  </div>
+</nav>
 
-<div th:if="${success}" class="flash success" th:text="${success}"></div>
-<div th:if="${error}"   class="flash error"   th:text="${error}"></div>
+<!-- ─── Toasts ───────────────────────────────────────────────── -->
+<div class="toasts">
+  <div th:if="${success}" class="toast success">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span th:text="${success}"></span>
+  </div>
+  <div th:if="${error}" class="toast error">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span th:text="${error}"></span>
+  </div>
+</div>
 
+<!-- ─── Main ─────────────────────────────────────────────────── -->
 <main>
+
+  <!-- Empty State -->
   <div th:if="${#lists.isEmpty(photos)}" class="empty">
-    <p>No photos yet.</p>
-    <a th:href="@{/upload}">Upload the first one</a>
+    <div class="empty-art">
+      <div class="art-card art-card-back"></div>
+      <div class="art-card art-card-mid"></div>
+      <div class="art-card art-card-front">
+        <div class="art-icon-wrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </div>
+        <div class="art-lines">
+          <div class="art-line"></div>
+          <div class="art-line art-line-short"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="empty-badge">
+      <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#818cf8"/></svg>
+      Gallery
+    </div>
+
+    <h2>No photos yet</h2>
+    <p>Your gallery is waiting. Upload your first photo and it will appear here, served instantly via CloudFront.</p>
+
+    <a th:href="@{/upload}" class="btn-cta">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Upload your first photo
+    </a>
   </div>
 
-  <div th:unless="${#lists.isEmpty(photos)}" class="grid">
-    <div th:each="photo : ${photos}" class="card">
-      <img th:src="${photo.imageUrl()}"
-           th:alt="${photo.description()}"
-           loading="lazy"/>
-      <div class="card-body">
-        <p th:text="${photo.description()}"></p>
-        <time th:datetime="${photo.createdAt()}"
-              th:text="${#temporals.format(photo.createdAt(), 'dd MMM yyyy, HH:mm')}"></time>
+  <!-- Grid -->
+  <div th:unless="${#lists.isEmpty(photos)}">
+    <div class="section-header">
+      <span class="section-title">All Photos</span>
+      <span class="section-count" th:text="${#lists.size(photos)} + ' total'"></span>
+    </div>
+
+    <div class="grid">
+      <div th:each="photo : ${photos}" class="card"
+           th:data-src="${photo.imageUrl()}"
+           th:data-alt="${photo.description()}"
+           onclick="openLightbox(this)">
+        <div class="card-img-wrap">
+          <img th:src="${photo.imageUrl()}"
+               th:alt="${photo.description()}"
+               loading="lazy"/>
+          <div class="card-overlay">
+            <p class="overlay-desc" th:text="${photo.description()}"></p>
+            <span class="overlay-time"
+                  th:text="${#temporals.format(photo.createdAt(), 'dd MMM yyyy')}"></span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
+
 </main>
 
-<footer>Powered by Spring Boot &bull; Amazon ECS &bull; CloudFront</footer>
+<!-- ─── Lightbox ──────────────────────────────────────────────── -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lb-close" onclick="closeLightbox(); event.stopPropagation();" aria-label="Close">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  </button>
+  <img id="lightbox-img" src="" alt=""/>
+</div>
+
+<!-- ─── Footer ───────────────────────────────────────────────── -->
+<footer>
+  <span class="footer-copy">&copy; 2025 Photo Gallery</span>
+  <div class="footer-stack">
+    <span class="stack-item">
+      <span class="stack-dot" style="background:#6ee7b7"></span>
+      Spring Boot
+    </span>
+    <span class="stack-item">
+      <span class="stack-dot" style="background:#60a5fa"></span>
+      Amazon ECS
+    </span>
+    <span class="stack-item">
+      <span class="stack-dot" style="background:#c084fc"></span>
+      CloudFront
+    </span>
+  </div>
+</footer>
+
+<script>
+  function openLightbox(el) {
+    document.getElementById('lightbox-img').src = el.dataset.src;
+    document.getElementById('lightbox-img').alt = el.dataset.alt || '';
+    document.getElementById('lightbox').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+  // Auto-dismiss toasts after 4 s
+  document.querySelectorAll('.toast').forEach(t => {
+    setTimeout(() => { t.style.transition = 'opacity 0.4s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 4000);
+  });
+</script>
 </body>
 </html>
