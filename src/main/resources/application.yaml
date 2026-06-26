@@ -42,6 +42,9 @@ management:
     env:
       enabled: true
 
+s3:
+  region: ${AWS_REGION:us-east-1}
+
 info:
   app:
     name: Photo Gallery
