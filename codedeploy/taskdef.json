@@ -59,7 +59,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/bem14-app",
+          "awslogs-group": "/ecs/ENV_PLACEHOLDER-bem14",
           "awslogs-region": "AWS_REGION_PLACEHOLDER",
           "awslogs-stream-prefix": "ecs"
         }
