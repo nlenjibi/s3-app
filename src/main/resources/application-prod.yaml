@@ -1,9 +1,0 @@
-management:
-  endpoint:
-    health:
-      show-details: always
-
-logging:
-  level:
-    root: WARN
-    com.bem12.app: INFO
