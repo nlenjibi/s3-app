@@ -1,11 +1,11 @@
 {
-  "family": "ENV_PLACEHOLDER-bem14-task",
+  "family": "prod-bem14-task",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
-  "executionRoleArn": "EXECUTION_ROLE_ARN_PLACEHOLDER",
-  "taskRoleArn": "TASK_ROLE_ARN_PLACEHOLDER",
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/prod-bem14-ecs-exec-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/prod-bem14-ecs-task-role",
   "containerDefinitions": [
     {
       "name": "app",
@@ -17,50 +17,23 @@
         }
       ],
       "environment": [
-        {
-          "name": "SPRING_PROFILES_ACTIVE",
-          "value": "ENV_PLACEHOLDER"
-        },
-        {
-          "name": "PORT",
-          "value": "8080"
-        },
-        {
-          "name": "DB_HOST",
-          "value": "DB_HOST_PLACEHOLDER"
-        },
-        {
-          "name": "DB_PORT",
-          "value": "5432"
-        },
-        {
-          "name": "DB_NAME",
-          "value": "photodb"
-        },
-        {
-          "name": "IMAGES_BUCKET",
-          "value": "IMAGES_BUCKET_PLACEHOLDER"
-        },
-        {
-          "name": "CLOUDFRONT_DOMAIN",
-          "value": "CLOUDFRONT_DOMAIN_PLACEHOLDER"
-        }
+        { "name": "PORT",    "value": "8080"    },
+        { "name": "DB_PORT", "value": "5432"    },
+        { "name": "DB_NAME", "value": "photodb" }
       ],
       "secrets": [
-        {
-          "name": "DB_USERNAME",
-          "valueFrom": "DB_SECRET_ARN_PLACEHOLDER:username::"
-        },
-        {
-          "name": "DB_PASSWORD",
-          "valueFrom": "DB_SECRET_ARN_PLACEHOLDER:password::"
-        }
+        { "name": "SPRING_PROFILES_ACTIVE", "valueFrom": "/bem14/prod/app/spring-profile"   },
+        { "name": "DB_HOST",                "valueFrom": "/bem14/prod/db/host"               },
+        { "name": "IMAGES_BUCKET",          "valueFrom": "/bem14/prod/s3/images-bucket"     },
+        { "name": "CLOUDFRONT_DOMAIN",      "valueFrom": "/bem14/prod/cloudfront/domain"    },
+        { "name": "DB_USERNAME",            "valueFrom": "prod/bem14/rds/credentials:username::" },
+        { "name": "DB_PASSWORD",            "valueFrom": "prod/bem14/rds/credentials:password::" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/ENV_PLACEHOLDER-bem14",
-          "awslogs-region": "AWS_REGION_PLACEHOLDER",
+          "awslogs-group": "/ecs/prod-bem14",
+          "awslogs-region": "eu-west-1",
           "awslogs-stream-prefix": "ecs"
         }
       },

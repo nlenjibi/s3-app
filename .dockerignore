@@ -1,0 +1,15 @@
+.git
+.github
+src/
+target/classes/
+target/test-classes/
+target/surefire-reports/
+target/maven-archiver/
+target/maven-status/
+target/*.original
+codedeploy/
+pom.xml
+*.md
+.gitignore
+.idea/
+*.iml
