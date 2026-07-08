@@ -89,16 +89,16 @@ jobs:
           ARTIFACTS_BUCKET=$(aws ssm get-parameter --name /bem14/prod/s3/artifacts-bucket --query Parameter.Value --output text)
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-          sed "s|<IMAGE1_NAME>|${ECR_URI}|g; s|ACCOUNT_ID|${ACCOUNT_ID}|g" \
-            codedeploy/taskdef.json > /tmp/taskdef.json
-          cp codedeploy/appspec.yaml /tmp/appspec.yaml
-          cd /tmp && zip -q deploy-artifacts.zip taskdef.json appspec.yaml
-          aws s3 cp deploy-artifacts.zip "s3://${ARTIFACTS_BUCKET}/prod/deploy-artifacts.zip"
-
           docker buildx build --push \
             --tag "${ECR_URI}" \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             .
+
+          sed "s|<IMAGE1_NAME>|${ECR_URI}|g; s|ACCOUNT_ID|${ACCOUNT_ID}|g" \
+            codedeploy/taskdef.json > /tmp/taskdef.json
+          cp codedeploy/appspec.yaml /tmp/appspec.yaml
+          (cd /tmp && zip -q deploy-artifacts.zip taskdef.json appspec.yaml)
+          aws s3 cp /tmp/deploy-artifacts.zip "s3://${ARTIFACTS_BUCKET}/prod/deploy-artifacts.zip"
 
           echo "::notice title=Deployed::${ECR_URI}"
