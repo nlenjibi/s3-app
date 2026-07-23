@@ -5,8 +5,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.UriComponentsBuilder;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.util.List;
@@ -49,10 +51,15 @@ public class PhotoService {
         String ext = EXTENSIONS.getOrDefault(file.getContentType(), "jpg");
         String key = "uploads/" + UUID.randomUUID() + "." + ext;
         putToS3(file, key);
-        Photo photo = new Photo();
-        photo.setImageKey(key);
-        photo.setDescription(description == null ? "" : description.strip());
-        photoRepository.save(photo);
+        try {
+            Photo photo = new Photo();
+            photo.setImageKey(key);
+            photo.setDescription(description == null ? "" : description.strip());
+            photoRepository.save(photo);
+        } catch (RuntimeException e) {
+            deleteFromS3(key);
+            throw e;
+        }
         log.info("Photo saved: key={}", key);
     }
 
@@ -84,10 +91,21 @@ public class PhotoService {
                             .contentType(file.getContentType())
                             .contentLength(file.getSize())
                             .build(),
-                    RequestBody.fromBytes(file.getBytes()));
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
         } catch (Exception e) {
             log.error("S3 upload failed for key={}: {}", key, e.getMessage());
             throw new RuntimeException("Upload failed. Please try again.");
+        }
+    }
+
+    private void deleteFromS3(String key) {
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to roll back orphaned S3 object key={}: {}", key, e.getMessage());
         }
     }
 
@@ -95,6 +113,12 @@ public class PhotoService {
         if (cloudFrontDomain == null || cloudFrontDomain.isBlank()) {
             return key;
         }
-        return "https://" + cloudFrontDomain + "/" + key;
+        return UriComponentsBuilder.newInstance()
+                .scheme("https")
+                .host(cloudFrontDomain)
+                .path("/")
+                .path(key)
+                .build()
+                .toUriString();
     }
 }
