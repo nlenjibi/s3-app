@@ -78,27 +78,21 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build, push, and upload artifacts
+      - name: Build and push image
         run: |
           ECR_URI=$(aws ssm get-parameter --name /bem14/prod/ecr/image-uri --query Parameter.Value --output text)
+          docker build --tag "${ECR_URI}" .
+          docker push "${ECR_URI}"
+
+      - name: Package and upload deployment artifacts
+        run: |
           ARTIFACTS_BUCKET=$(aws ssm get-parameter --name /bem14/prod/s3/artifacts-bucket --query Parameter.Value --output text)
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-          docker buildx build --push \
-            --tag "${ECR_URI}" \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            .
+          sed "s|ACCOUNT_ID|${ACCOUNT_ID}|g" codedeploy/taskdef.json > taskdef.json
 
-          sed "s|<IMAGE1_NAME>|${ECR_URI}|g; s|ACCOUNT_ID|${ACCOUNT_ID}|g" \
-            codedeploy/taskdef.json > /tmp/taskdef.json
-          cp codedeploy/appspec.yaml /tmp/appspec.yaml
-          (cd /tmp && zip -q deploy-artifacts.zip taskdef.json appspec.yaml)
-          aws s3 cp /tmp/deploy-artifacts.zip "s3://${ARTIFACTS_BUCKET}/prod/deploy-artifacts.zip"
+          zip -j deploy-artifacts.zip taskdef.json codedeploy/appspec.yaml
+          aws s3 cp deploy-artifacts.zip "s3://${ARTIFACTS_BUCKET}/prod/deploy-artifacts.zip"
 
           echo "::notice title=Deployed::${ECR_URI}"
