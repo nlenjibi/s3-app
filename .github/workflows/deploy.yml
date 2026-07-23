@@ -89,7 +89,8 @@ jobs:
       - name: Package and upload deployment artifacts
         run: |
           ARTIFACTS_BUCKET=$(aws ssm get-parameter --name /bem14/prod/s3/artifacts-bucket --query Parameter.Value --output text)
-          zip -j deploy-artifacts.zip taskdef.json codedeploy/appspec.yaml
+
+          zip -j deploy-artifacts.zip codedeploy/taskdef.json codedeploy/appspec.yaml
           aws s3 cp deploy-artifacts.zip "s3://${ARTIFACTS_BUCKET}/prod/deploy-artifacts.zip"
 
           echo "::notice title=Deployed::${ECR_URI}"
